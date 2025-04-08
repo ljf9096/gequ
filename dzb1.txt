@@ -1405,12 +1405,10 @@
 {"key":"雨滴","name":"雨滴","type":3,"api":"csp_Xdai","playerType":1,"ext": "jaHR0cDovL2M4dzJvdjd1NXdnMnoxbzhwMjFjLmFsaXl1bmNzLmNsaWNrfGs5bzNwMmM4YjdtM3owbzh8azlvM3AyYzhiN20zejBvOA","jar":"https://gitee.com/kosan75/tv/raw/master/jar/241114.jar"}
  ],
 
-"logo": "https://fs-im-kefu.7moor-fs1.com/ly/4d2c3f00-7d4c-11e5-af15-41bf63ae4ea0/1716545739254/fc1b89e152cd4aa28d295107cb6c56c9.gif",
   "lives": [ 
      {
       "name": "辽宁为主源",
       "type": 0,
-      "epg": "http://epg.112114.xyz/?ch={name}&date={date}",
       "url": "https://gitee.com/qttv/tv/raw/master/qt.m3u",
       "playerType": 1
     },
