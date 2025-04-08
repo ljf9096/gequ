@@ -1,4 +1,55 @@
 {
+  "lives": [ 
+     {
+      "name": "辽宁为主源",
+      "type": 0,
+      "url": "https://gitee.com/qttv/tv/raw/master/qt.m3u",
+      "playerType": 1
+    },
+    {
+      "name": "范明明源",
+      "type": 0,
+      "url": "https://live.fanmingming.cn/tv/m3u/ipv6.m3u",
+      "playerType": 1
+    },
+      {
+      "name": "麒桐影视",
+      "type": 0,
+      "url": "https://gitee.com/qttv/tv/raw/master/qt.m3u",
+      "playerType": 1
+    }, 
+  {
+      "name": "李家大少",
+      "type": 0,
+      "url": "https://gitee.com/li-family-junior/zb/raw/master/ZB.txt",
+      "playerType": 1
+    }, 
+   {
+      "name": "河南为主源",
+      "type": 0,
+      "url": "https://kkgithub.com/extdomains/cdn.jsdelivr.net/gh/Supprise0901/TVBox_live/live.txt",
+      "playerType": 1
+    },
+     {
+      "name": "看电视吧",
+      "type": 0,
+      "url": "http://8.138.7.223/live.txt",
+      "playerType": 1
+    },
+     {
+      "name": "Govin源",
+      "type": 0,
+      "url": "https://cdn.jsdelivr.net/gh/Guovin/iptv-api@gd/output/result.txt",
+      "playerType": 1
+    },
+     {
+      "name": "歌曲",
+      "type": 0,
+      "url": "https://ghproxy.net/https://raw.githubusercontent.com/ljf9096/gq/main/%E6%AD%8C%E6%9B%B2.txt",
+      "playerType": 1
+    }
+  ],
+
  "sites": [
     {
       "key": "Alist",
@@ -1403,56 +1454,5 @@
 {"key":"南瓜","name":"南瓜","type":3,"api":"csp_NanGua","searchable":1,"quickSearch":1,"playerType":1,"filterable":1,"ext":"","jar":"https://gitee.com/kosan75/tv/raw/master/jar/241114.jar"},
 {"key":"柠檬","name":"柠檬","type":3,"api":"csp_Nmvod","playerType":1,"ext":"eaHR0cHM6Ly9hcGkuY25tY29tLmNvbS93ZWJjbG91ZC9yZWxheS5waHA/dXJsPQ==","jar":"https://gitee.com/kosan75/tv/raw/master/jar/241114.jar"},
 {"key":"雨滴","name":"雨滴","type":3,"api":"csp_Xdai","playerType":1,"ext": "jaHR0cDovL2M4dzJvdjd1NXdnMnoxbzhwMjFjLmFsaXl1bmNzLmNsaWNrfGs5bzNwMmM4YjdtM3owbzh8azlvM3AyYzhiN20zejBvOA","jar":"https://gitee.com/kosan75/tv/raw/master/jar/241114.jar"}
- ],
-
-  "lives": [ 
-     {
-      "name": "辽宁为主源",
-      "type": 0,
-      "url": "https://gitee.com/qttv/tv/raw/master/qt.m3u",
-      "playerType": 1
-    },
-    {
-      "name": "范明明源",
-      "type": 0,
-      "url": "https://live.fanmingming.cn/tv/m3u/ipv6.m3u",
-      "playerType": 1
-    },
-      {
-      "name": "麒桐影视",
-      "type": 0,
-      "url": "https://gitee.com/qttv/tv/raw/master/qt.m3u",
-      "playerType": 1
-    }, 
-  {
-      "name": "李家大少",
-      "type": 0,
-      "url": "https://gitee.com/li-family-junior/zb/raw/master/ZB.txt",
-      "playerType": 1
-    }, 
-   {
-      "name": "河南为主源",
-      "type": 0,
-      "url": "https://kkgithub.com/extdomains/cdn.jsdelivr.net/gh/Supprise0901/TVBox_live/live.txt",
-      "playerType": 1
-    },
-     {
-      "name": "看电视吧",
-      "type": 0,
-      "url": "http://8.138.7.223/live.txt",
-      "playerType": 1
-    },
-     {
-      "name": "Govin源",
-      "type": 0,
-      "url": "https://cdn.jsdelivr.net/gh/Guovin/iptv-api@gd/output/result.txt",
-      "playerType": 1
-    },
-     {
-      "name": "歌曲",
-      "type": 0,
-      "url": "https://ghproxy.net/https://raw.githubusercontent.com/ljf9096/gq/main/%E6%AD%8C%E6%9B%B2.txt",
-      "playerType": 1
-    }
-  ]
+ ]
 }
