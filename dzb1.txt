@@ -3,6 +3,7 @@
      {
       "name": "辽宁为主源",
       "type": 0,
+"epg":"https://epg.112114.eu.org/?ch={name}&date={date}",
       "url": "https://gitee.com/qttv/tv/raw/master/qt.m3u",
       "playerType": 1
     },
