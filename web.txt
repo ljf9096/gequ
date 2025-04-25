@@ -1,5 +1,5 @@
 央视,#genre#,
-CCTV-1,https://w.ljf.work.gd/k-web/ku9/js/web.js?id=https://yangshipin.cn/tv/home?pid=600001859
+CCTV1,https://w.ljf.work.gd/k-web/ku9/js/web.js?id=https://yangshipin.cn/tv/home?pid=600001859
 CCTV-2,https://w.ljf.work.gd/k-web/ku9/js/web.js?id=https://yangshipin.cn/tv/home?pid=600001800
 CCTV-3,https://w.ljf.work.gd/k-web/ku9/js/web.js?id=https://tv.cctv.com/live/cctv3/
 CCTV-4,https://w.ljf.work.gd/k-web/ku9/js/web.js?id=https://yangshipin.cn/tv/home?pid=600001814
