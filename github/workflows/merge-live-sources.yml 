@@ -1,0 +1,38 @@
+import requests
+from urllib.parse import urljoin
+
+def merge_live_sources(source1_url, source2_url, output_filename='merged_live_sources.m3u'):
+    """
+    合并两个GitHub上的直播源文档
+    
+    参数:
+        source1_url:https://gitee.com/li-family-junior/zb/raw/master/ZB.txt raw URL
+        source2_url:http://8.138.7.223/51.txt raw URL
+        output_filename: 1.txt
+    """
+    try:
+        # 获取第一个直播源内容
+        response1 = requests.get(source1_url)
+        response1.raise_for_status()
+        content1 = response1.text
+        
+        # 获取第二个直播源内容
+        response2 = requests.get(source2_url)
+        response2.raise_for_status()
+        content2 = response2.text
+        
+        # 合并内容，去除重复行
+        combined_content = content1.strip() + "\n\n" + content2.strip()
+        unique_lines = set(combined_content.split('\n'))
+        merged_content = '\n'.join(line for line in unique_lines if line.strip())
+        
+        # 写入合并后的文件
+        with open(output_filename, 'w', encoding='utf-8') as f:
+            f.write(merged_content)
+            
+        print(f"成功合并直播源，结果已保存到 {output_filename}")
+        
+    except requests.exceptions.RequestException as e:
+        print(f"获取直播源时出错: {e}")
+    except Exception as e:
+        print(f"处理过程中出错: {e}")
