@@ -1,0 +1,115 @@
+name: 多直播源合并工作流
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_urls:
+        description: '直播源URL列表（用竖线|分隔）'
+        required: true
+        default: 'http://source1.txt|https://source2.txt|http://source3.txt'
+  schedule:
+    - cron: '0 4 * * *'  # 每天UTC时间4点自动运行
+
+jobs:
+  merge_sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 初始化环境
+        run: |
+          # 设置输出文件名（带日期）
+          echo "OUTPUT_FILE=merged_tv_sources_$(date +%Y%m%d).txt" >> $GITHUB_ENV
+          # 创建临时目录
+          mkdir -p tmp_sources
+
+      - name: 并行下载源文件
+        uses: actions/github-script@v6
+        id: download
+        with:
+          script: |
+            const { default: axios } = await import('axios')
+            const fs = require('fs')
+            const sources = process.env.SOURCE_URLS.split('|')
+            
+            let successCount = 0
+            const downloads = sources.map(async (url, index) => {
+              try {
+                const response = await axios.get(url.trim(), {
+                  timeout: 15000,
+                  responseType: 'text'
+                })
+                
+                fs.writeFileSync(`tmp_sources/source_${index}.txt`, response.data)
+                console.log(`✓ 下载成功: ${url}`)
+                successCount++
+              } catch (error) {
+                console.log(`✗ 下载失败[${url}]: ${error.message}`)
+              }
+            })
+            
+            await Promise.all(downloads)
+            return successCount
+        env:
+          SOURCE_URLS: ${{ inputs.source_urls }}
+
+      - name: 合并处理
+        if: steps.download.outputs.result > 0
+        run: |
+          # 合并所有有效源文件
+          cat tmp_sources/*.txt | \
+            grep -E '^(http|https)://' | \  # 只保留URL
+            grep -v '^#' | \                # 移除注释
+            sed '/^$/d' | \                 # 移除空行
+            awk '!seen[$0]++' | \           # 高效去重
+            sort > ${{ env.OUTPUT_FILE }}   # 排序输出
+
+          # 添加文件头
+          {
+            echo "# 直播源合并报告"
+            echo "# 生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "# 有效源数量: $(wc -l < ${{ env.OUTPUT_FILE }})"
+            echo "# 原始来源:"
+            echo "${{ inputs.source_urls }}" | tr '|' '\n' | sed 's/^/# /'
+            echo ""
+            cat ${{ env.OUTPUT_FILE }}
+          } > tmp_final.txt && mv tmp_final.txt ${{ env.OUTPUT_FILE }}
+
+      - name: 结果验证
+        run: |
+          if [ $(wc -l < "${{ env.OUTPUT_FILE }}") -lt 50 ]; then
+            echo "::error::合并结果过少（<50条），可能有错误！"
+            exit 1
+          fi
+          echo "验证通过，共 $(wc -l < "${{ env.OUTPUT_FILE }}") 条有效源"
+
+      - name: 发布结果
+        uses: softprops/action-gh-release@v1
+        if: success()
+        with:
+          tag_name: "tv-sources-$(date +%Y%m%d)"
+          name: "直播源合集 $(date +'%m-%d')"
+          body: |
+            🚀 自动生成的直播源合集
+            - 来源数量: ${{ steps.download.outputs.result }}/${{ contains(inputs.source_urls, '|') + 1 }}
+            - 有效条目: $(wc -l < "${{ env.OUTPUT_FILE }}")
+          files: ${{ env.OUTPUT_FILE }}
+
+      - name: 提交到仓库
+        run: |
+          git config --global user.name "TV Sources Bot"
+          git config --global user.email "tv-bot@users.noreply.github.com"
+          git add ${{ env.OUTPUT_FILE }}
+          if git diff-index --quiet HEAD --; then
+            echo "没有变更需要提交"
+          else
+            git commit -m "📺 更新直播源合集 [$(date +%m-%d)]"
+            git pull --rebase
+            git push
+          fi
+
+      - name: 清理缓存
+        if: always()
+        run: rm -rf tmp_sources
