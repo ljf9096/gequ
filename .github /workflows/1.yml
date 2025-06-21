@@ -6,7 +6,7 @@ on:
       source_urls:
         description: '直播源URL列表（用竖线|分隔）'
         required: true
-        default: 'http://source1.txt|https://source2.txt|http://source3.txt'
+        default: 'https://cdn.jsdelivr.net/gh/ljf9096/ds@main/henan.txt|http://39.162.21.133:88/tv.txt|https://cdn.jsdelivr.net/gh/a736240087/tvbox@main/tvlive/tvlive.txt'
   schedule:
     - cron: '0 4 * * *'  # 每天UTC时间4点自动运行
 
