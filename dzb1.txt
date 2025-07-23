@@ -10,12 +10,6 @@
       "filterable": 0,
       "jar": "https://fs-im-kefu.7moor-fs1.com/ly/4d2c3f00-7d4c-11e5-af15-41bf63ae4ea0/1734602329530/fan.txt;md5;7c6dbc73b47bcff6a7744f6aecedebc2"
     },
-       {
-            "key": "a",
-            "name": "a",
-            "type": 3,
-            "ext": "https://cdn.jsdelivr.net/gh/ljf9096/ds@main/a"
-        },
     {
       "key": "玩偶",
       "name": "👽玩偶哥哥┃4K弹幕",
