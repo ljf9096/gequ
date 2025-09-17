@@ -1,5 +1,5 @@
 
-name: itvlist
+name: ds
 
 on:
   schedule:
