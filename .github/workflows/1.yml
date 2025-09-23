@@ -1,0 +1,33 @@
+name:1
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check-iptv:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        pip install requests
+
+    - name: Run IPTV Checker
+      run: |
+        python iptv_checker.py
+
+    - name: Commit and push results
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add whitelist.txt whitelist.m3u blacklist.txt statistics.json statistics.txt
+        git commit -m "Auto update IPTV lists - $(date)" || echo "No changes to commit"
+        git push
