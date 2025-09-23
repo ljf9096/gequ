@@ -5,135 +5,144 @@ import requests
 import time
 import concurrent.futures
 import re
-import os
 from urllib.parse import urlparse
-import json
 from datetime import datetime
 
 class IPTVChecker:
     def __init__(self):
-        self.sources = [
-            # 公开的IPTV源地址
-            "https://raw.githubusercontent.com/iptv-org/iptv/master/streams.m3u",
-            "https://raw.githubusercontent.com/free-iptv/iptv/master/streams.m3u",
-            "https://raw.githubusercontent.com/EvilCult/iptv-m3u-maker/master/m3u/iptv.m3u",
-            "http://tonkiang.us/9dlist.txt",
-            "https://raw.githubusercontent.com/YanG-1989/m3u/main/Adult.m3u",
-            "https://raw.githubusercontent.com/YanG-1989/m3u/main/Gather.m3u"
-        ]
+        self.source_file = "1.txt"
+        self.whitelist_file = "2.txt"
+        self.blacklist_file = "3.txt"
         
         self.timeout = 5
-        self.max_workers = 50
+        self.max_workers = 30
         self.valid_sources = []
         self.invalid_sources = []
-        self.whitelist = []
-        self.blacklist = []
         
-        # 分类定义
-        self.categories = {
-            "CCTV": ["CCTV", "央视"],
-            "卫视": ["卫视", "TV", "电视台"],
-            "电影": ["电影", "MOVIE", "影院"],
-            "体育": ["体育", "SPORT", "足球", "篮球"],
-            "新闻": ["新闻", "NEWS"],
-            "少儿": ["少儿", "卡通", "动画", "儿童"],
-            "国际": ["BBC", "CNN", "NHK", "HBO", "DISNEY"],
-            "成人": ["成人", "ADULT", "18+", "XXX"]
-        }
+    def read_source_urls(self):
+        """从1.txt读取多个来源地址"""
+        print("正在读取来源文件 1.txt...")
+        source_urls = []
         
-    def fetch_sources(self):
-        """从多个来源获取直播源"""
-        print("开始从多个来源抓取直播源...")
-        all_urls = set()
-        
-        for source in self.sources:
-            try:
-                response = requests.get(source, timeout=10)
-                if response.status_code == 200:
-                    # 解析M3U格式
-                    if source.endswith('.m3u') or source.endswith('.m3u8'):
-                        urls = self.parse_m3u(response.text)
-                    # 解析TXT格式
-                    else:
-                        urls = self.parse_txt(response.text)
-                    
-                    print(f"从 {source} 获取到 {len(urls)} 个直播源")
-                    all_urls.update(urls)
-                    
-            except Exception as e:
-                print(f"获取源 {source} 失败: {e}")
-                continue
-        
-        return list(all_urls)
+        try:
+            with open(self.source_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        # 支持多种格式：纯URL或 名称,URL
+                        if ',' in line:
+                            url = line.split(',')[-1].strip()
+                        else:
+                            url = line
+                        
+                        if self.is_valid_source_url(url):
+                            source_urls.append(url)
+            
+            print(f"从 1.txt 中读取到 {len(source_urls)} 个有效来源地址")
+            return source_urls
+            
+        except FileNotFoundError:
+            print(f"错误：文件 {self.source_file} 不存在")
+            return []
+        except Exception as e:
+            print(f"读取文件时出错: {e}")
+            return []
     
-    def parse_m3u(self, content):
-        """解析M3U格式文件"""
-        urls = []
-        lines = content.split('\n')
+    def is_valid_source_url(self, url):
+        """检查来源URL是否有效"""
+        if not url or not isinstance(url, str):
+            return False
         
-        for i in range(len(lines)):
-            if lines[i].startswith('#EXTINF'):
-                if i + 1 < len(lines) and not lines[i + 1].startswith('#'):
-                    url = lines[i + 1].strip()
-                    if self.is_valid_url(url):
-                        # 提取频道名称
-                        name_match = re.search(r'[,]([^,]+)$', lines[i])
-                        name = name_match.group(1).strip() if name_match else "未知频道"
-                        urls.append((name, url))
+        valid_protocols = ['http', 'https']
+        parsed = urlparse(url)
         
-        return urls
+        if parsed.scheme not in valid_protocols:
+            return False
+        
+        if not parsed.netloc:
+            return False
+        
+        return True
     
-    def parse_txt(self, content):
-        """解析TXT格式文件"""
+    def fetch_from_source(self, source_url):
+        """从单个来源地址获取直播源"""
+        try:
+            print(f"正在抓取: {source_url}")
+            response = requests.get(source_url, timeout=10)
+            
+            if response.status_code == 200:
+                content = response.text
+                urls = self.extract_stream_urls(content, source_url)
+                print(f"从 {source_url} 提取到 {len(urls)} 个直播源")
+                return urls
+            else:
+                print(f"抓取失败 {source_url}: HTTP {response.status_code}")
+                return []
+                
+        except Exception as e:
+            print(f"抓取 {source_url} 时出错: {e}")
+            return []
+    
+    def extract_stream_urls(self, content, source_url):
+        """从内容中提取直播源URL"""
         urls = []
         lines = content.split('\n')
         
         for line in lines:
             line = line.strip()
-            if line and not line.startswith('#'):
-                # 处理 频道名,URL 格式
-                if ',' in line:
-                    parts = line.split(',', 1)
-                    if len(parts) == 2 and self.is_valid_url(parts[1]):
-                        urls.append((parts[0].strip(), parts[1].strip()))
-                # 处理纯URL格式
-                elif self.is_valid_url(line):
-                    urls.append(("未知频道", line))
+            if not line or line.startswith('#'):
+                continue
+            
+            # 处理 M3U 格式
+            if line.startswith('http'):
+                urls.append(("未知频道", line))
+            
+            # 处理 频道名,URL 格式
+            elif ',' in line:
+                parts = line.split(',', 1)
+                if len(parts) == 2 and self.is_valid_stream_url(parts[1]):
+                    urls.append((parts[0].strip(), parts[1].strip()))
+            
+            # 处理 EXTINF 格式
+            elif line.startswith('#EXTINF'):
+                # 在M3U格式中，下一行通常是URL
+                pass
         
         return urls
     
-    def is_valid_url(self, url):
-        """检查URL是否有效"""
-        if not url or not isinstance(url, str):
+    def is_valid_stream_url(self, url):
+        """检查直播源URL格式是否有效"""
+        if not url:
             return False
         
-        # 检查常见协议
-        valid_protocols = ['http', 'https', 'rtmp', 'rtsp', 'udp']
+        valid_protocols = ['http', 'https', 'rtmp', 'rtsp', 'udp', 'rtp']
         parsed = urlparse(url)
+        
         if parsed.scheme not in valid_protocols:
             return False
         
-        # 检查域名和路径
-        if not parsed.netloc or not parsed.path:
+        if not parsed.netloc:
             return False
         
         return True
     
-    def check_single_source(self, name_url):
+    def check_stream(self, name_url):
         """检查单个直播源的有效性"""
         name, url = name_url
         
         try:
-            # 对于HTTP/HTTPS源
+            # 主要检查HTTP/HTTPS源
             if url.startswith(('http', 'https')):
-                response = requests.head(url, timeout=self.timeout, allow_redirects=True)
+                # 使用HEAD请求快速检查
+                response = requests.head(url, timeout=self.timeout, 
+                                       allow_redirects=True, 
+                                       headers={'User-Agent': 'Mozilla/5.0'})
+                
                 if response.status_code == 200:
                     return (name, url, True, response.elapsed.total_seconds())
             
-            # 对于其他协议，尝试建立连接
+            # 对于其他协议，暂时标记为有效（需要特殊工具验证）
             else:
-                # 这里可以添加其他协议的检查逻辑
-                # 暂时标记为有效，但需要进一步验证
                 return (name, url, True, 0)
                 
         except requests.exceptions.RequestException:
@@ -143,20 +152,19 @@ class IPTVChecker:
         
         return (name, url, False, 0)
     
-    def check_sources(self, sources):
+    def check_all_streams(self, all_streams):
         """并发检查所有直播源"""
-        print(f"开始检查 {len(sources)} 个直播源的有效性...")
+        print(f"开始检查 {len(all_streams)} 个直播源的有效性...")
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            results = list(executor.map(self.check_single_source, sources))
+            results = list(executor.map(self.check_stream, all_streams))
         
         for name, url, is_valid, response_time in results:
             if is_valid:
                 self.valid_sources.append({
                     'name': name,
                     'url': url,
-                    'response_time': response_time,
-                    'category': self.categorize_channel(name)
+                    'response_time': response_time
                 })
             else:
                 self.invalid_sources.append({
@@ -166,133 +174,100 @@ class IPTVChecker:
         
         print(f"检查完成: {len(self.valid_sources)} 个有效源, {len(self.invalid_sources)} 个无效源")
     
-    def categorize_channel(self, channel_name):
-        """对频道进行分类"""
-        channel_name = channel_name.upper()
-        
-        for category, keywords in self.categories.items():
-            for keyword in keywords:
-                if keyword.upper() in channel_name:
-                    return category
-        
-        return "其他"
-    
     def generate_whitelist(self):
-        """生成白名单"""
-        print("生成白名单...")
+        """生成白名单 2.txt"""
+        print("生成白名单 2.txt...")
         
-        # 按分类组织白名单
-        categorized = {}
-        for source in self.valid_sources:
-            category = source['category']
-            if category not in categorized:
-                categorized[category] = []
-            categorized[category].append(source)
-        
-        # 生成白名单文件
-        with open('whitelist.txt', 'w', encoding='utf-8') as f:
-            f.write("# IPTV直播源白名单\n")
-            f.write(f"# 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"# 有效源数量: {len(self.valid_sources)}\n")
-            f.write("#" + "="*50 + "\n\n")
-            
-            for category, sources in categorized.items():
-                f.write(f"# {category}频道\n")
-                for source in sorted(sources, key=lambda x: x['name']):
+        try:
+            with open(self.whitelist_file, 'w', encoding='utf-8') as f:
+                f.write("# IPTV直播源白名单\n")
+                f.write(f"# 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# 有效源数量: {len(self.valid_sources)}\n")
+                f.write("#" + "="*50 + "\n\n")
+                
+                # 按响应时间排序（快的在前）
+                sorted_sources = sorted(self.valid_sources, key=lambda x: x['response_time'])
+                
+                for source in sorted_sources:
                     f.write(f"{source['name']},{source['url']}\n")
-                f.write("\n")
-        
-        # 生成M3U格式白名单
-        with open('whitelist.m3u', 'w', encoding='utf-8') as f:
-            f.write('#EXTM3U\n')
-            for source in self.valid_sources:
-                f.write(f'#EXTINF:-1 tvg-name="{source["name"]}" group-title="{source["category"]}",{source["name"]}\n')
-                f.write(f'{source["url"]}\n')
+            
+            print(f"白名单已保存到 {self.whitelist_file}")
+            
+        except Exception as e:
+            print(f"生成白名单时出错: {e}")
     
     def generate_blacklist(self):
-        """生成黑名单"""
-        print("生成黑名单...")
+        """生成黑名单 3.txt"""
+        print("生成黑名单 3.txt...")
         
-        with open('blacklist.txt', 'w', encoding='utf-8') as f:
-            f.write("# IPTV直播源黑名单\n")
-            f.write(f"# 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"# 无效源数量: {len(self.invalid_sources)}\n")
-            f.write("#" + "="*50 + "\n\n")
+        try:
+            with open(self.blacklist_file, 'w', encoding='utf-8') as f:
+                f.write("# IPTV直播源黑名单\n")
+                f.write(f"# 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# 无效源数量: {len(self.invalid_sources)}\n")
+                f.write("#" + "="*50 + "\n\n")
+                
+                for source in self.invalid_sources:
+                    f.write(f"{source['name']},{source['url']}\n")
             
-            for source in self.invalid_sources:
-                f.write(f"{source['name']},{source['url']}\n")
-    
-    def generate_statistics(self):
-        """生成统计报告"""
-        print("生成统计报告...")
-        
-        stats = {
-            'total_sources': len(self.valid_sources) + len(self.invalid_sources),
-            'valid_sources': len(self.valid_sources),
-            'invalid_sources': len(self.invalid_sources),
-            'success_rate': len(self.valid_sources) / (len(self.valid_sources) + len(self.invalid_sources)) * 100,
-            'categories': {},
-            'generation_time': datetime.now().isoformat()
-        }
-        
-        # 分类统计
-        for source in self.valid_sources:
-            category = source['category']
-            if category not in stats['categories']:
-                stats['categories'][category] = 0
-            stats['categories'][category] += 1
-        
-        with open('statistics.json', 'w', encoding='utf-8') as f:
-            json.dump(stats, f, ensure_ascii=False, indent=2)
-        
-        # 文本格式统计
-        with open('statistics.txt', 'w', encoding='utf-8') as f:
-            f.write("IPTV直播源统计报告\n")
-            f.write("="*50 + "\n")
-            f.write(f"生成时间: {stats['generation_time']}\n")
-            f.write(f"总源数量: {stats['total_sources']}\n")
-            f.write(f"有效源数量: {stats['valid_sources']}\n")
-            f.write(f"无效源数量: {stats['invalid_sources']}\n")
-            f.write(f"成功率: {stats['success_rate']:.2f}%\n\n")
+            print(f"黑名单已保存到 {self.blacklist_file}")
             
-            f.write("分类统计:\n")
-            for category, count in stats['categories'].items():
-                f.write(f"  {category}: {count}个\n")
+        except Exception as e:
+            print(f"生成黑名单时出错: {e}")
     
     def run(self):
         """主运行函数"""
         start_time = time.time()
         
-        try:
-            # 1. 获取直播源
-            sources = self.fetch_sources()
-            if not sources:
-                print("未获取到任何直播源")
-                return
-            
-            # 2. 检查有效性
-            self.check_sources(sources)
-            
-            # 3. 生成结果文件
+        print("=" * 60)
+        print("IPTV直播源自动化检测工具")
+        print("=" * 60)
+        
+        # 1. 读取来源地址
+        source_urls = self.read_source_urls()
+        if not source_urls:
+            print("未找到有效的来源地址，请检查 1.txt 文件")
+            return
+        
+        # 2. 从所有来源抓取直播源
+        all_streams = []
+        for source_url in source_urls:
+            streams = self.fetch_from_source(source_url)
+            all_streams.extend(streams)
+        
+        if not all_streams:
+            print("未从任何来源获取到直播源")
+            return
+        
+        # 3. 去重
+        unique_streams = list(set(all_streams))
+        print(f"去重后剩余 {len(unique_streams)} 个唯一直播源")
+        
+        # 4. 检查有效性
+        self.check_all_streams(unique_streams)
+        
+        # 5. 生成结果文件
+        if self.valid_sources:
             self.generate_whitelist()
+        else:
+            print("没有有效源，跳过生成白名单")
+        
+        if self.invalid_sources:
             self.generate_blacklist()
-            self.generate_statistics()
-            
-            # 4. 输出总结
-            end_time = time.time()
-            print(f"\n{'='*60}")
-            print("IPTV直播源检测完成!")
-            print(f"总耗时: {end_time - start_time:.2f}秒")
-            print(f"有效源: {len(self.valid_sources)}个")
-            print(f"无效源: {len(self.invalid_sources)}个")
-            print(f"成功率: {len(self.valid_sources)/len(sources)*100:.2f}%")
-            print(f"生成文件: whitelist.txt, whitelist.m3u, blacklist.txt, statistics.json, statistics.txt")
-            print(f"{'='*60}")
-            
-        except Exception as e:
-            print(f"运行过程中发生错误: {e}")
-            import traceback
-            traceback.print_exc()
+        else:
+            print("没有无效源，跳过生成黑名单")
+        
+        # 6. 输出总结
+        end_time = time.time()
+        print(f"\n{'='*60}")
+        print("检测完成!")
+        print(f"总耗时: {end_time - start_time:.2f}秒")
+        print(f"处理来源: {len(source_urls)}个")
+        print(f"获取源数: {len(all_streams)}个")
+        print(f"唯一源数: {len(unique_streams)}个")
+        print(f"有效源数: {len(self.valid_sources)}个 → 2.txt")
+        print(f"无效源数: {len(self.invalid_sources)}个 → 3.txt")
+        print(f"{'='*60}")
 
 if __name__ == "__main__":
     checker = IPTVChecker()
