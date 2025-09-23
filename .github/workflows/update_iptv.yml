@@ -2,6 +2,9 @@ name: Update IPTV
 
 on:
   workflow_dispatch:   # 手动触发
+  schedule:
+    # 北京时间 9:00、17:00、01:00，转换为 UTC
+    - cron: '0 1,9,17 * * *'
 
 jobs:
   build:
@@ -33,27 +36,21 @@ jobs:
           pip install --upgrade pip
           pip install selenium requests futures eventlet pytz opencv-python beautifulsoup4 translate lxml
 
-      # 5️⃣ 运行 Python 脚本（只运行 iptv_udp.py）
+      # 5️⃣ 只运行 iptv_udp.py（不再运行 txt_m3u.py）
       - name: Run IPTV script
         run: |
           echo ">>> 开始运行 iptv_udp.py"
           python ${{ github.workspace }}/iptv_udp.py
           echo ">>> 完成 iptv_udp.py"
-          
-          # 直接创建 1.txt 文件（替代 txt_m3u.py 的功能）
-          echo ">>> 直接生成 1.txt 文件"
-          # 这里可以根据需要添加生成 1.txt 的具体命令
-          # 例如：cp IPTV_UDP.txt 1.txt 或者进行其他处理
-          cp IPTV_UDP.txt 1.txt || echo "使用备用方法生成 1.txt"
-          echo ">>> 1.txt 文件已生成"
+          echo ">>> 跳过运行 txt_m3u.py（根据用户要求）"
 
       # 6️⃣ 提交生成的文件
       - name: Commit and push generated files
         run: |
           git config --local user.email "your_email@example.com"
           git config --local user.name "your_name"
-          # 添加生成的文件，包括 1.txt
-          git add IPTV_UDP.txt IPTV_UDP.m3u 1.txt outfiles/*.txt
-          git commit -m "Update IPTV files (直接生成1.txt)" || echo "No changes to commit"
+          # 只添加生成文件（不再包含 txt_m3u.py 生成的文件）
+          git add IPTV_UDP.txt IPTV_UDP.m3u
+          git commit -m "Update IPTV files (只运行iptv_udp.py)" || echo "No changes to commit"
           git pull --rebase
           git push
