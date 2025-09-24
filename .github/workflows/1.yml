@@ -24,7 +24,7 @@ jobs:
 
     - name: Run IPTV Checker
       run: |
-        python iptv_checker.py
+        python 1.py
 
     - name: Commit and push results
       run: |
