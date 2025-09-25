@@ -1,33 +1,44 @@
 import requests
-from bs4 import BeautifulSoup
-import re
+import json
 
-# 1. 模拟FOFA资产页面请求（需替换实际Cookie与资产IP）
-fofa_cookie = "your_fofa_cookie"  # 从浏览器F12开发者工具获取
-target_ip = "192.168.1.100"  # FOFA筛选出的广东地区IPTV资产IP
-js_url = f"http://{target_ip}/iptv/live/zh_cn.js"  # 目标JS文件路径
-
+# FOFA搜索参数
+search_url = "https://fofa.info/api/v1/search/all"
 headers = {
-    "Cookie": fofa_cookie,
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 }
 
-# 2. 下载并解析JS文件提取URL
-response = requests.get(js_url, headers=headers, timeout=10)
-response.encoding = "utf-8"
-js_content = response.text
+# 构造搜索条件
+params = {
+    "qbase64": "aXBob25lc3xlbnRyeT0iQ0hJTmV3UzIwMjYiJTIwc2l0ZT0iZ29vZ2xlLmNvbSIsInBhZ2U9IjIwMjYwOSIsInNlYXJjaF90eXBlPSJ6IiwicmVzdWx0X3NpemU9IjM1MCIsInJlc3VsdF90b3RhbF9zaXplPSI1MDAwIiwicmVhZF90byUzRCJ6IiwicmVhZF90byUzRCJ6IiwicmVhZF90byUzRCJ6IiwicmVhZF90byUzRCJ6IiwicmVhZF90byUzRCJ6IiwicmVhZF90byUzRCJ6IiwicmVhZF90byUzRCJ6IiwicmVhZF90byUzRCJ6IiwicmVhZF90byU3RCIsInJlc291cmNlX3R5cGU9Imh0dHAiLCJyZXNvdXJjZV90eXBlX3N0cmluZz0iaHR0cCIsInJlc291cmNlX2Zyb209IjIwMjYwOSIsInJlc291cmNlX2Zyb21fdHlwZT0idGV4dCIsInJlc291cmNlX2Zyb21fdHlwZV9zdHJpbmc9InRleHQiLCJyZXNvdXJjZV9maWxlX3R5cGU9Imh0dHAiLCJyZXNvdXJjZV9maWxlX3R5cGU9InBhc3Npb24iLCJyZXNvdXJjZV9maWxlX30=",
+    "fields": "url,key"
+}
 
-# 匹配央视、卫视URL（适配http/rtmp协议，含频道关键词）
-url_pattern = r'(http|rtmp)://[^\s,"]+(CCTV\d+|GuangdongTV|HunanTV|ZhejiangTV|JiangsuTV|卫视|央视)[^\s,"]*'
-matched_urls = re.findall(url_pattern, js_content, re.IGNORECASE)
+try:
+    # 发送请求
+    response = requests.get(search_url, headers=headers, params=params)
+    response.raise_for_status()
+    
+    # 解析JSON数据
+    data = response.json()
+    results = data.get('results', [])
+    
+    # 筛选央视/卫视URL
+    target_urls = []
+    for item in results:
+        url = item.get('url')
+        key = item.get('key')
+        if key and ("央视" in key or "卫视" in key):
+            target_urls.append(url)
+    
+    # 去重处理
+    target_urls = list(set(target_urls))
+    
+    # 写入文件
+    with open("1.txt", "w", encoding="utf-8") as f:
+        for url in target_urls:
+            f.write(url + "\n")
+    
+    print(f"成功获取{len(target_urls)}个直播源，已保存至1.txt")
 
-# 提取纯URL（过滤正则匹配的分组元素）
-valid_urls = [url[0] + "://" + url[1] for url in matched_urls]
-
-# 3. 去重并写入1.txt文件
-unique_urls = list(set(valid_urls))  # 去除重复URL
-with open("1.txt", "w", encoding="utf-8") as f:
-    for url in unique_urls:
-        f.write(url + "\n")
-
-print(f"成功提取{len(unique_urls)}条有效URL，已保存至1.txt")
+except Exception as e:
+    print(f"执行出错: {str(e)}")
