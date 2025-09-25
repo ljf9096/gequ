@@ -1,215 +1,167 @@
 import requests
 import json
-import base64
 import time
 import re
+from concurrent.futures import ThreadPoolExecutor
 
-class FOFAScraper:
+class FOFALiveSourceFetcher:
     def __init__(self, email, key):
         self.email = email
         self.key = key
         self.base_url = "https://fofa.info/api/v1/search/all"
         
-    def build_query(self):
-        """构建FOFA查询语句"""
-        query = 'body="iptv/live/zh_cn.js" && region="Guangdong"'
-        return base64.b64encode(query.encode()).decode()
-    
-    def search_fofa(self, page=1, size=100):
-        """搜索FOFA数据"""
+    def search_live_sources(self):
+        """搜索直播源"""
         params = {
             'email': self.email,
             'key': self.key,
-            'qbase64': self.build_query(),
-            'page': page,
-            'size': size,
-            'fields': 'ip,port,host,title'
+            'qbase64': 'InNtYXJ0ZGVza3RvcCBpcHR2L2xpdmUvemhfY24uanMiICYmIHJlZ2lvbj0iR3Vhbmdkb25nIg==',  # 编码后的查询条件
+            'fields': 'ip,port,protocol,host,title,lastupdatetime',
+            'size': 1000  # 获取较多结果用于筛选
         }
         
         try:
-            response = requests.get(self.base_url, params=params, timeout=10)
+            response = requests.get(self.base_url, params=params, timeout=30)
             if response.status_code == 200:
                 return response.json()
             else:
-                print(f"请求失败: {response.status_code}")
+                print(f"API请求失败: {response.status_code}")
                 return None
         except Exception as e:
             print(f"请求异常: {e}")
             return None
     
-    def extract_live_sources(self, results):
-        """从结果中提取直播源"""
-        live_sources = []
+    def test_live_source_speed(self, host, protocol='http'):
+        """测试直播源响应时间"""
+        test_urls = [
+            f"{protocol}://{host}/live/zh_cn.js",
+            f"{protocol}://{host}/iptv/live/zh_cn.js",
+            f"{protocol}://{host}/live/tv.txt",
+            f"{protocol}://{host}/iptv/tv.txt"
+        ]
         
-        if not results or 'results' not in results:
-            return live_sources
+        for url in test_urls:
+            try:
+                start_time = time.time()
+                response = requests.get(url, timeout=5, stream=True)
+                response_time = (time.time() - start_time) * 1000  # 转换为毫秒
+                
+                if response.status_code == 200:
+                    # 检查内容是否包含央视卫视频道
+                    content = response.text
+                    if self.is_valid_live_source(content):
+                        return url, response_time
+            except:
+                continue
         
-        for item in results['results']:
-            ip = item[0] if len(item) > 0 else ''
-            port = item[1] if len(item) > 1 else ''
-            host = item[2] if len(item) > 2 else ''
-            
-            # 尝试多种可能的直播源URL模式
-            base_urls = self.generate_base_urls(ip, port, host)
-            
-            for base_url in base_urls:
-                sources = self.get_live_sources_from_url(base_url)
-                if sources:
-                    live_sources.extend(sources)
-                    break  # 如果从一个URL获取成功，就不尝试其他URL
-        
-        return live_sources
+        return None, float('inf')
     
-    def generate_base_urls(self, ip, port, host):
-        """生成可能的直播源基础URL"""
+    def is_valid_live_source(self, content):
+        """验证是否为有效的直播源内容"""
+        # 检查是否包含央视卫视关键字
+        cctv_keywords = ['CCTV', '央视', '中央']
+        satellite_keywords = ['卫视', '湖南卫视', '浙江卫视', '江苏卫视', '北京卫视']
+        
+        has_cctv = any(keyword in content for keyword in cctv_keywords)
+        has_satellite = any(keyword in content for keyword in satellite_keywords)
+        
+        return has_cctv or has_satellite
+    
+    def extract_channel_urls(self, content, base_url):
+        """从内容中提取频道URL"""
         urls = []
         
-        # 基于host生成URL
-        if host and host not in ['', 'null']:
-            if not host.startswith('http'):
-                host = f"http://{host}"
-            urls.append(f"{host}/iptv/live/zh_cn.js")
-            urls.append(f"{host}/live/zh_cn.js")
-            urls.append(f"{host}/zh_cn.js")
-        
-        # 基于IP和端口生成URL
-        if ip and ip not in ['', 'null']:
-            if port and port not in ['', 'null', '0']:
-                base = f"http://{ip}:{port}"
-            else:
-                base = f"http://{ip}"
-            
-            urls.extend([
-                f"{base}/iptv/live/zh_cn.js",
-                f"{base}/live/zh_cn.js",
-                f"{base}/zh_cn.js",
-                f"{base}/iptv/live/1000.json?key=tott",
-                f"{base}/live/1000.json?key=tott"
-            ])
-        
-        return urls
-    
-    def get_live_sources_from_url(self, url):
-        """从具体URL获取直播源"""
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-            response = requests.get(url, headers=headers, timeout=5)
-            
-            if response.status_code == 200:
-                return self.parse_live_sources(response.text, url)
-                
-        except Exception as e:
-            print(f"获取 {url} 失败: {e}")
-        
-        return []
-    
-    def parse_live_sources(self, content, base_url):
-        """解析直播源内容"""
-        sources = []
-        base_domain = '/'.join(base_url.split('/')[:3])
-        
-        # 匹配JavaScript中的频道数据
+        # 匹配常见的直播源格式
         patterns = [
-            r'channelName["\']?\s*:\s*["\']([^"\']+)["\'][^}]*?url["\']?\s*:\s*["\']([^"\']+)["\']',
-            r'{"channelName":"([^"]+)","url":"([^"]+)"}',
-            r'name["\']?\s*:\s*["\']([^"\']+)["\'][^}]*?url["\']?\s*:\s*["\']([^"\']+)["\']'
+            r'([^,\n]+\.m3u8[^,\n]*)',
+            r'([^,\n]+\.flv[^,\n]*)',
+            r'([^,\n]+\?auth[^,\n]*)',
+            r'(http[^,\n]+)'
         ]
         
         for pattern in patterns:
-            matches = re.findall(pattern, content, re.DOTALL)
+            matches = re.findall(pattern, content)
             for match in matches:
-                channel_name, url = match
-                if self.is_cctv_or_satellite(channel_name):
-                    # 处理相对URL
-                    if url.startswith('/'):
-                        full_url = base_domain + url
-                    elif not url.startswith('http'):
-                        full_url = base_domain + '/' + url
-                    else:
-                        full_url = url
-                    
-                    sources.append(f"{channel_name},{full_url}")
+                if match.startswith('http'):
+                    urls.append(match)
+                else:
+                    # 相对路径转绝对路径
+                    if not match.startswith('/'):
+                        match = '/' + match
+                    urls.append(base_url + match)
         
-        return sources
+        return list(set(urls))  # 去重
     
-    def is_cctv_or_satellite(self, channel_name):
-        """判断是否为央视或卫视频道"""
-        cctv_keywords = ['CCTV', '央视', '中央']
-        satellite_keywords = ['卫视', 'TV', '电视台']
+    def get_top_live_sources(self):
+        """获取响应时间最短的前5个直播源"""
+        print("正在搜索FOFA直播源...")
+        result = self.search_live_sources()
         
-        channel_lower = channel_name.upper()
+        if not result or 'results' not in result:
+            print("未找到直播源或API请求失败")
+            return []
         
-        # 央视频道
-        if any(keyword in channel_name for keyword in cctv_keywords):
-            return True
+        print(f"找到 {len(result['results'])} 个潜在直播源")
         
-        # 卫视频道
-        if any(keyword in channel_name for keyword in satellite_keywords):
-            # 排除一些非电视节目
-            exclude_words = ['信息', '数据', '监控']
-            if not any(word in channel_name for word in exclude_words):
-                return True
+        # 测试响应时间
+        live_sources = []
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = []
+            for item in result['results']:
+                host = item.get('host') or item.get('ip')
+                if host:
+                    futures.append(executor.submit(self.test_live_source_speed, host))
+            
+            for i, future in enumerate(futures):
+                url, response_time = future.result()
+                if url and response_time < float('inf'):
+                    live_sources.append((url, response_time))
+                print(f"测试进度: {i+1}/{len(futures)}")
         
-        return False
+        # 按响应时间排序，取前5个
+        live_sources.sort(key=lambda x: x[1])
+        return live_sources[:5]
     
-    def save_to_file(self, sources, filename='1.txt'):
-        """保存直播源到文件"""
+    def save_to_file(self, live_sources, filename='1.txt'):
+        """保存到文件"""
         with open(filename, 'w', encoding='utf-8') as f:
-            f.write("# 央视卫视直播源\n")
-            f.write("# 更新时间: " + time.strftime("%Y-%m-%d %H:%M:%S") + "\n\n")
+            f.write("# 央视卫视直播源 - 响应时间最短前5个\n")
+            f.write(f"# 生成时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write("# 格式: 频道名称,直播地址,响应时间(ms)\n\n")
             
-            # 分类保存
-            cctv_sources = [s for s in sources if any(kw in s for kw in ['CCTV', '央视', '中央'])]
-            satellite_sources = [s for s in sources if s not in cctv_sources]
-            
-            if cctv_sources:
-                f.write("# 央视频道\n")
-                for source in cctv_sources:
-                    f.write(source + "\n")
-                f.write("\n")
-            
-            if satellite_sources:
-                f.write("# 卫视频道\n")
-                for source in satellite_sources:
-                    f.write(source + "\n")
+            for i, (url, response_time) in enumerate(live_sources, 1):
+                # 尝试获取频道名称
+                channel_name = self.guess_channel_name(url)
+                f.write(f"{channel_name},{url},{response_time:.2f}ms\n")
         
-        print(f"成功保存 {len(sources)} 个直播源到 {filename}")
+        print(f"直播源已保存到 {filename}")
 
-def main():
-    # 需要配置您的FOFA账号信息
-    FOFA_EMAIL = "your_fofa_email@example.com"  # 替换为您的FOFA邮箱
-    FOFA_KEY = "your_fofa_api_key"  # 替换为您的FOFA API Key
-    
-    if FOFA_EMAIL == "your_fofa_email@example.com":
-        print("请先配置FOFA账号信息！")
-        return
-    
-    scraper = FOFAScraper(FOFA_EMAIL, FOFA_KEY)
-    
-    print("开始搜索FOFA数据...")
-    results = scraper.search_fofa(page=1, size=100)
-    
-    if not results:
-        print("未获取到数据，请检查网络连接和API配置")
-        return
-    
-    print(f"获取到 {len(results.get('results', []))} 条记录")
-    
-    print("提取直播源...")
-    live_sources = scraper.extract_live_sources(results)
-    
-    if live_sources:
-        print(f"成功提取 {len(live_sources)} 个直播源")
-        scraper.save_to_file(live_sources, '1.txt')
-        
-        # 打印部分结果预览
-        print("\n前10个直播源预览:")
-        for i, source in enumerate(live_sources[:10]):
-            print(f"{i+1}. {source}")
-    else:
-        print("未提取到有效的直播源")
+    def guess_channel_name(self, url):
+        """根据URL猜测频道名称"""
+        if 'cctv' in url.lower():
+            return '央视综合'
+        elif 'weishi' in url.lower() or 'satellite' in url.lower():
+            return '卫视综合'
+        else:
+            return '直播频道'
 
+# 使用示例
 if __name__ == "__main__":
-    main()
+    # 需要替换为你的FOFA账号信息
+    FOFA_EMAIL = "ljf9096@example.com"  # 替换为你的FOFA邮箱
+    FOFA_KEY = "410522Ljf"         # 替换为你的FOFA API Key
+    
+    fetcher = FOFALiveSourceFetcher(FOFA_EMAIL, FOFA_KEY)
+    
+    print("开始获取直播源...")
+    top_sources = fetcher.get_top_live_sources()
+    
+    if top_sources:
+        print("\n找到的前5个直播源:")
+        for i, (url, response_time) in enumerate(top_sources, 1):
+            print(f"{i}. {url} - {response_time:.2f}ms")
+        
+        fetcher.save_to_file(top_sources, '1.txt')
+        print("\n任务完成！")
+    else:
+        print("未找到有效的直播源")
