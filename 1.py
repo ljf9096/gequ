@@ -159,8 +159,8 @@ class FOFAFetcher:
 
 if __name__ == "__main__":
     # 替换为你的FOFA账号信息
-    FOFA_EMAIL = "your_email@example.com"
-    FOFA_API_KEY = "your_api_key_here"
+    FOFA_EMAIL = "ljf9096@163.com"
+    FOFA_API_KEY = "410522Ljf"
     
     fetcher = FOFAFetcher(FOFA_EMAIL, FOFA_API_KEY)
     fetcher.run()
