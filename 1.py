@@ -12,7 +12,7 @@ class FOFAFetcher:
         self.live_sources = []
 
     def build_query(self):
-        """构建FOFA搜索语法"""
+        """iptv/live/zh_cn.js" && region="Guangdong""""
         queries = [
             'title="直播"',
             'title="IPTV"',
