@@ -1,0 +1,3 @@
+tvgate部署
+
+docker run -d   --name=tvgate   -p 48788:8888 --restart=unless-stopped  -v /usr/local/TVGate/:/etc/tvgate/   juestnow/tvgate:latest
